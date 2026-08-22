@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GOD'S HOLD'EM 〜神と狂信者のポーカー〜</title>
+  <meta name="description" content="全知全能の「神」と特殊役職が織りなす究極の心理戦ポーカー。スマホで参加して同じWi-Fi上で即座に遊べるマルチプレイヤーゲーム。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Outfit:wght@400;600;700;900&family=Zen+Kaku+Gothic+New:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=2">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/sound.js"></script>
+</head>
+<body>
+
+  <!-- 背景エフェクト -->
+  <div class="casino-bg">
+    <div class="ambient-glow glow-gold"></div>
+    <div class="ambient-glow glow-purple"></div>
+    <div class="floating-suits">
+      <span>♠</span><span>♥</span><span>♦</span><span>♣</span>
+    </div>
+  </div>
+
+  <!-- ナビゲーションバー -->
+  <header class="app-header">
+    <div class="logo-group">
+      <span class="logo-icon">👑</span>
+      <div class="logo-text">
+        <h1 class="logo-title">GOD'S HOLD'EM</h1>
+        <p class="logo-sub">テキサスホールデム × 人狼系特殊役職</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-icon" id="btn-show-qr" title="スマホ接続用QRコード">
+        <span class="icon">📱</span><span class="btn-text">スマホ接続</span>
+      </button>
+      <button class="btn btn-icon" id="btn-show-roles" title="全9役職ルール図鑑">
+        <span class="icon">📖</span><span class="btn-text">役職一覧</span>
+      </button>
+      <button class="btn btn-icon" id="btn-toggle-sound" title="サウンド切替">
+        <span class="icon" id="sound-icon">🔊</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- メインコンテンツコンテナ -->
+  <main class="main-container">
+
+    <!-- === [1] ロビー画面 === -->
+    <section id="screen-lobby" class="screen-view active">
+      <div class="hero-box">
+        <div class="badge-tag">LOCAL WI-FI MULTIPLAYER</div>
+        <h2 class="hero-headline">神の全知全能か、<br><span class="text-gold">村人の告発</span>か。</h2>
+        <p class="hero-desc">
+          参加者の中に1人だけ潜む「神」または「ジョーカー」…<br>
+          9つの特殊能力が交錯する究極のポーカーバトル！
+        </p>
+      </div>
+
+      <div class="lobby-card-grid">
+        <!-- 部屋を作成する -->
+        <div class="card glass-panel create-card">
+          <div class="card-header">
+            <span class="card-icon">🏛️</span>
+            <h3>新しく部屋を作る</h3>
+          </div>
+          <form id="form-create-room" class="form-group">
+            <div class="input-field">
+              <label for="create-name">あなたの名前</label>
+              <input type="text" id="create-name" maxlength="10" placeholder="例: プレイヤー1" required autocomplete="off">
+            </div>
+            <div class="input-row-3">
+              <div class="input-field">
+                <label for="starting-chips">初期チップ</label>
+                <input type="number" id="starting-chips" value="1000" min="200" max="10000" step="100">
+              </div>
+              <div class="input-field">
+                <label for="big-blind">BB (ブラインド)</label>
+                <input type="number" id="big-blind" value="20" min="10" max="500" step="10">
+              </div>
+              <div class="input-field">
+                <label for="max-rounds">最大ラウンド</label>
+                <input type="number" id="max-rounds" value="5" min="1" max="20" step="1">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-gold btn-block btn-lg" id="btn-create-submit">
+              <span>🏰 部屋を作成してホストになる</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- 部屋に参加する -->
+        <div class="card glass-panel join-card">
+          <div class="card-header">
+            <span class="card-icon">🔑</span>
+            <h3>部屋番号で参加する</h3>
+          </div>
+          <form id="form-join-room" class="form-group">
+            <div class="input-field">
+              <label for="join-code">6桁の部屋番号</label>
+              <input type="text" id="join-code" inputmode="numeric" maxlength="6" placeholder="例: 123456" required autocomplete="off" class="input-room-code">
+            </div>
+            <div class="input-field">
+              <label for="join-name">あなたの名前</label>
+              <input type="text" id="join-name" maxlength="10" placeholder="例: ゲスト" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-join-submit">
+              <span>🚪 部屋に参加する</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- === [2] 待機室画面 === -->
+    <section id="screen-waiting" class="screen-view">
+      <div class="waiting-header glass-panel">
+        <div class="room-code-display">
+          <span class="label">ROOM NUMBER</span>
+          <div class="code-number" id="waiting-room-code">------</div>
+          <button class="btn btn-sm btn-ghost" id="btn-copy-code">📋 番号をコピー</button>
+        </div>
+        <div class="room-status-badge">
+          <span class="dot pulse"></span> 参加待機中 (<span id="waiting-player-count">1</span> / 8人)
+        </div>
+      </div>
+
+      <div class="waiting-body">
+        <div class="player-list-section glass-panel">
+          <div class="section-title-bar">
+            <h3>参加プレイヤー一覧</h3>
+            <span class="sub-note">※2〜8名で開始可能</span>
+          </div>
+          <div class="player-slots-grid" id="waiting-player-list">
+            <!-- プレイヤーカード動的挿入 -->
+          </div>
+        </div>
+
+        <div class="waiting-controls glass-panel">
+          <div class="host-badge-box" id="host-controls">
+            <h4>👑 ホスト専用操作</h4>
+            <div class="host-btn-group">
+              <button class="btn btn-secondary btn-block" id="btn-add-bot">
+                <span>🤖 CPU（AIプレイヤー）を追加</span>
+              </button>
+              <button class="btn btn-secondary btn-block" id="btn-open-role-settings" style="margin-top:0.4rem; background:linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.3)); border:1px solid rgba(236,72,153,0.5);">
+                <span>⚙️ 役職構成カスタマイズ（Ban/Pick）</span>
+              </button>
+              <button class="btn btn-gold btn-block btn-xl" id="btn-start-game" style="margin-top:0.6rem;">
+                <span>⚔️ ゲームを開始する！</span>
+              </button>
+              <button class="btn btn-danger-ghost btn-block" id="btn-close-room" style="margin-top:0.5rem;">
+                <span>🚪 部屋を閉じる（解散）</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 役職設定プレビュー -->
+          <div class="role-settings-summary-box" style="margin-top:1rem; padding:0.75rem; background:rgba(15,23,42,0.6); border-radius:var(--radius-md); border:1px solid var(--border-glass);">
+            <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+              <span>🎰 出現対象の役職構成:</span>
+              <span id="role-settings-count-text" style="color:var(--gold-400); font-weight:bold;">全9役職</span>
+            </div>
+            <div id="role-settings-icons-preview" style="display:flex; flex-wrap:wrap; gap:0.35rem;">
+              <!-- JSでバッジ生成 -->
+            </div>
+          </div>
+
+          <div class="guest-msg-box" id="guest-controls" style="display:none; text-align:center;">
+            <div class="spinner" style="margin:0 auto 0.5rem auto;"></div>
+            <p>ホストがゲームを開始するのを待っています…</p>
+            <button class="btn btn-danger-ghost btn-block" id="btn-leave-room" style="margin-top:1rem;">
+              <span>🚪 部屋から出る</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- === [3] メインゲーム卓画面 === -->
+    <section id="screen-game" class="screen-view">
+      <!-- 卓上情報バー -->
+      <div class="table-top-bar glass-panel">
+        <div class="bar-item">
+          <span class="bar-label">ROUND</span>
+          <span class="bar-val text-gold" id="game-round-count">1 / 5 局</span>
+        </div>
+        <div class="bar-item">
+          <span class="bar-label">PHASE</span>
+          <span class="bar-badge" id="game-phase-badge">PRE-FLOP</span>
+        </div>
+        <div class="bar-item pot-highlight">
+          <span class="bar-label">TOTAL POT</span>
+          <span class="bar-val pot-val" id="game-pot-val">$0</span>
+        </div>
+        <div class="bar-item">
+          <span class="bar-label">CURRENT BET</span>
+          <span class="bar-val" id="game-current-bet">$0</span>
+        </div>
+        <div id="revolution-banner" class="revolution-banner-badge" style="display:none;">
+          <span class="icon">🚩</span>
+          <span id="revolution-banner-text">【革命発動中】</span>
+        </div>
+        <div class="bar-item host-end-box" id="host-game-controls" style="display:none;">
+          <button class="btn btn-sm btn-danger-ghost" id="btn-host-force-end" title="部屋を終了して最終結果を表示">
+            🚪 部屋終了
+          </button>
+        </div>
+      </div>
+
+      <!-- ポーカーテーブル領域 -->
+      <div class="poker-table-container">
+        <!-- 他プレイヤー配置（円卓） -->
+        <div class="opponents-ring" id="opponents-container">
+          <!-- 他プレイヤーのアバターと手札 -->
+        </div>
+
+        <!-- テーブル中央（コミュニティカード & ポット） -->
+        <div class="table-center-board">
+          <div class="table-felt-logo">
+            <span class="felt-crown">👑</span>
+            <span class="felt-text">GOD'S HOLD'EM</span>
+          </div>
+
+          <div class="community-cards-container">
+            <div class="cards-deck-stack" title="山札">
+              <div class="card-back-stack"></div>
+              <span class="deck-count" id="deck-remaining-count">🎴</span>
+            </div>
+            <div class="community-cards-row" id="community-cards-row">
+              <!-- 5枚のコミュニティカード -->
+            </div>
+          </div>
+
+          <div class="table-pot-chips" id="table-pot-display">
+            <span class="chip-icon">🪙</span>
+            <span class="pot-text" id="center-pot-text">$0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- プレイヤー操作エリア（下部ドック） -->
+      <div class="player-bottom-dock glass-panel">
+        <!-- 役職バッジ & 所持チップ & スキルボタン & 告発ボタン -->
+        <div class="player-status-strip">
+          <div class="my-role-badge-box" id="my-role-badge-trigger" title="タップして役職詳細・勝利条件を確認">
+            <span class="role-icon" id="my-role-icon">❓</span>
+            <div class="role-text-wrap">
+              <span class="role-name" id="my-role-name">役職配布中</span>
+              <span class="role-team-tag" id="my-role-team">--</span>
+            </div>
+            <span class="role-help-indicator">ℹ️</span>
+          </div>
+
+          <!-- 自分の所持チップ残高表示 -->
+          <div class="my-chips-box" title="現在の所持チップ">
+            <span class="chip-icon">💰</span>
+            <div class="chips-text-wrap">
+              <span class="chips-label">所持金</span>
+              <span class="chips-val" id="my-chips-val">$1,000</span>
+            </div>
+          </div>
+
+          <div class="action-quick-buttons">
+            <button class="btn btn-skill" id="btn-use-skill">
+              <span class="icon">⚡</span>
+              <span class="text">特殊能力を使う</span>
+              <span class="skill-count-badge" id="skill-remaining-badge">1</span>
+            </button>
+            <button class="btn btn-accuse" id="btn-open-accuse">
+              <span class="icon">🚨</span>
+              <span class="text">告発する</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 手札 & 手役 & ベッティング操作 -->
+        <div class="player-hands-and-controls">
+          <!-- 自分の手札2枚 -->
+          <div class="my-hole-cards-area">
+            <div class="my-cards-flex" id="my-hole-cards">
+              <!-- 手札カード2枚 -->
+            </div>
+            <div class="my-hand-rank-badge" id="my-current-hand-eval">
+              役: 評価中...
+            </div>
+          </div>
+
+          <!-- アクション操作ボタン群 -->
+          <div class="betting-controls-area">
+            <div class="raise-slider-group">
+              <div class="slider-val-display">
+                <span>レイズ目標額:</span>
+                <strong class="text-gold" id="raise-target-val">$40</strong>
+              </div>
+              <div class="slider-row">
+                <button class="btn btn-sm btn-ghost btn-chip-step" data-step="10">+10</button>
+                <button class="btn btn-sm btn-ghost btn-chip-step" data-step="50">+50</button>
+                <button class="btn btn-sm btn-ghost btn-chip-step" data-step="100">+100</button>
+                <button class="btn btn-sm btn-ghost btn-chip-step" id="btn-pot-raise">POT</button>
+                <button class="btn btn-sm btn-ghost btn-chip-step" id="btn-all-in">ALL IN</button>
+              </div>
+              <input type="range" id="bet-slider" min="20" max="1000" step="10" value="40" class="custom-slider">
+            </div>
+
+            <div class="action-buttons-row">
+              <button class="btn btn-action btn-fold" id="btn-action-fold">
+                <span class="btn-sub">降りる</span>
+                <span class="btn-main">FOLD</span>
+              </button>
+              <button class="btn btn-action btn-check-call" id="btn-action-call">
+                <span class="btn-sub" id="call-sub-text">パス</span>
+                <span class="btn-main" id="call-main-text">CHECK</span>
+              </button>
+              <button class="btn btn-action btn-raise" id="btn-action-raise">
+                <span class="btn-sub" id="raise-sub-text">賭け金引上</span>
+                <span class="btn-main" id="raise-main-text">RAISE $40</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ログコンソール -->
+      <div class="game-log-drawer" id="log-drawer">
+        <div class="log-drawer-header" id="log-drawer-toggle">
+          <span>📜 ゲーム履歴・アクションログ</span>
+          <span class="toggle-arrow">▲</span>
+        </div>
+        <div class="log-messages-list" id="log-messages">
+          <!-- ログエントリー -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- === [4] 各種モーダル === -->
+
+  <!-- 役職一覧ガイドモーダル -->
+  <div class="modal-overlay" id="modal-roles-guide">
+    <div class="modal-card modal-lg glass-panel">
+      <div class="modal-header">
+        <h2>📖 全9役職 ルール＆能力図鑑</h2>
+        <button class="btn-close-modal" data-close="modal-roles-guide">×</button>
+      </div>
+      <div class="modal-body roles-guide-grid">
+        <div class="role-guide-card role-border-god">
+          <div class="rg-header">
+            <span class="rg-icon">👑</span>
+            <div>
+              <h4>神 (God)</h4>
+              <span class="badge badge-god">神陣営 (神枠候補)</span>
+            </div>
+          </div>
+          <p class="rg-desc">全プレイヤーの手札とコミュニティカード（未公開含む）が全て見える。フォールドおよび告発は行えない。</p>
+          <div class="rg-ability">
+            <strong>【神の改変】（1ゲーム3回）</strong><br>
+            手札1枚または未公開場札1枚を、山札トップのカードと交換（旧カードは山札の底へ）。
+          </div>
+          <div class="rg-win"><strong>勝利条件:</strong> ショーダウン時に手役が最強であれば単独勝利（告発されたら敗北）。</div>
+        </div>
+
+        <div class="role-guide-card role-border-joker">
+          <div class="rg-header">
+            <span class="rg-icon">🎭</span>
+            <div>
+              <h4>ジョーカー (Joker)</h4>
+              <span class="badge badge-joker">神陣営 (神枠候補)</span>
+            </div>
+          </div>
+          <p class="rg-desc">手札2枚が全数字・全スートとして機能する万能の道化師。フォールドおよび告発は行えない。</p>
+          <div class="rg-ability">
+            <strong>【ワイルド】（常時発動）</strong><br>
+            手札2枚は全数字・全スート扱い。ただし上がり手役は「フラッシュ」以上が必要。
+          </div>
+          <div class="rg-win"><strong>勝利条件:</strong> 「フラッシュ」以上の手役で最強であれば勝利（神告発されたら敗北）。</div>
+        </div>
+
+        <div class="role-guide-card role-border-cultist">
+          <div class="rg-header">
+            <span class="rg-icon">🩸</span>
+            <div>
+              <h4>狂信者 (Cultist)</h4>
+              <span class="badge badge-cultist">神陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">誰が神か最初から知っている。自分の最強カードを神に献上し神を強化する。</p>
+          <div class="rg-ability"><strong>【狂信の献上】（1回）</strong>自分の手札の一番強いカードと、神の手札の一番弱いカードを強制交換する。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神が勝利した時に共に勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-onmyoji">
+          <div class="rg-header">
+            <span class="rg-icon">☯️</span>
+            <div>
+              <h4>陰陽師 (Onmyoji)</h4>
+              <span class="badge badge-onmyoji">第三勢力</span>
+            </div>
+          </div>
+          <p class="rg-desc">誰が神か知っている。生存した状態で神が勝利した場合、神の勝利を横取りして単独勝利！（※告発は行えない）</p>
+          <div class="rg-ability"><strong>【乗っ取り】</strong>神勝利を強奪（他者から神または陰陽師として告発されたら強制フォールド。自身は告発不可）。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神の勝利を乗っ取り単独勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-lovers">
+          <div class="rg-header">
+            <span class="rg-icon">💕</span>
+            <div>
+              <h4>恋人 (Lovers)</h4>
+              <span class="badge badge-lovers">特殊陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">誰か1人を選んでペアになる。村側勝利時、ペア以外の村人は勝利不可（恋人ペア勝利）。</p>
+          <div class="rg-ability"><strong>【運命の契約】（1回）</strong>対象1名とペアになる。神を選んだ場合、神敗北時に恋人も道連れ。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> ペアと共に生き残り勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-seer">
+          <div class="rg-header">
+            <span class="rg-icon">🔮</span>
+            <div>
+              <h4>占い師 (Seer)</h4>
+              <span class="badge badge-villager">村人陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">水晶玉で真実を見通す。</p>
+          <div class="rg-ability"><strong>【役職透視】（1回）</strong>指定したプレイヤー1名の役職を自分だけ確認する。</div/div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神を告発で暴く、または通常ポーカーで勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-swindler">
+          <div class="rg-header">
+            <span class="rg-icon">🃏</span>
+            <div>
+              <h4>詐欺師 (Swindler)</h4>
+              <span class="badge badge-villager">村人陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">手札を自在にすり替えるイカサマ師。</p>
+          <div class="rg-ability"><strong>【イカサマ引き直し】（1回）</strong>手札を好きな枚数捨て、山札から新しく引き直す。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神を告発で暴く、または通常ポーカーで勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-salesman">
+          <div class="rg-header">
+            <span class="rg-icon">💼</span>
+            <div>
+              <h4>営業マン (Salesman)</h4>
+              <span class="badge badge-villager">村人陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">巧みな交渉で相手の最高カードを奪う強欲な商人。</p>
+          <div class="rg-ability"><strong>【押し売りトレード】（1回）</strong>指定した相手の手札の最強カードと、自分の手札の最弱カードを強制交換する。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神を告発で暴く、または通常ポーカーで勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-jobless">
+          <div class="rg-header">
+            <span class="rg-icon">🛋️</span>
+            <div>
+              <h4>無職 (Jobless)</h4>
+              <span class="badge badge-villager">村人陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">失うもののない無敵の人。</p>
+          <div class="rg-ability"><strong>【ノーリスク参加】</strong>チップを一切消費せずにベット・コール・レイズ可能（勝利してもチップ獲得なし）。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 盤面を掻き乱し村人勝利をアシスト。</div>
+        </div>
+
+        <div class="role-guide-card role-border-jogress">
+          <div class="rg-header">
+            <span class="rg-icon">🧬</span>
+            <div>
+              <h4>ジョグレス (Jogress)</h4>
+              <span class="badge badge-villager">村人陣営</span>
+            </div>
+          </div>
+          <p class="rg-desc">手札2枚を数値合成し強力カードへと変身させる合体使い。</p>
+          <div class="rg-ability"><strong>【ジョグレス合成】（1回）</strong>手札2枚を合体（Aは1扱い）。合計14以下は1枚に合体＋山札から1枚引く。合計15はAのペア作成。16以上はA＋余り数数値カードに進化。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 神を告発で暴く、または通常ポーカーで勝利。</div>
+        </div>
+
+        <div class="role-guide-card role-border-revolutionist">
+          <div class="rg-header">
+            <span class="rg-icon">🚩</span>
+            <div>
+              <h4>革命家 (Revolutionist)</h4>
+              <span class="badge badge-revolutionist">第三勢力</span>
+            </div>
+          </div>
+          <p class="rg-desc">世界の強弱法則を反転させる革命主導者。告発は行えない。</p>
+          <div class="rg-ability"><strong>【革命】（1回）</strong>(1)ポーカー役の強さ、または(2)トランプ数字の強さを選んで強弱を逆転させる。</div>
+          <div class="rg-win"><strong>勝利条件:</strong> 【未使用時】村人勝利時に共に勝利。【使用時】ジョーカー同卓時はジョーカー超えで勝利、不在時はツーペア以上で勝利！</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自身の役職詳細モーダル -->
+  <div class="modal-overlay" id="modal-my-role-detail">
+    <div class="modal-card glass-panel my-role-detail-card">
+      <div class="modal-header">
+        <h2>🎭 あなたの役職詳細</h2>
+        <button class="btn-close-modal" data-close="modal-my-role-detail">×</button>
+      </div>
+      <div class="modal-body" id="my-role-detail-body">
+        <!-- JSで動的生成 -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-gold btn-full" data-close="modal-my-role-detail">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- スキル発動モーダル -->
+  <div class="modal-overlay" id="modal-skill-action">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <h2 id="skill-modal-title">⚡ 特殊能力の発動</h2>
+        <button class="btn-close-modal" data-close="modal-skill-action">×</button>
+      </div>
+      <div class="modal-body" id="skill-modal-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close="modal-skill-action">キャンセル</button>
+        <button class="btn btn-gold" id="btn-confirm-skill">能力を発動する！</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 告発モーダル -->
+  <div class="modal-overlay" id="modal-accuse">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <h2>🚨 真相の告発 (ACCUSE)</h2>
+        <button class="btn-close-modal" data-close="modal-accuse">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert-box alert-warning">
+          <strong>⚠️ 告発のルールとペナルティ</strong>
+          <ul>
+            <li>「👑 神」を言い当てた場合：<strong>村人陣営の即時勝利！</strong></li>
+            <li>「☯️ 陰陽師」を言い当てた場合：陰陽師が強制フォールド（乗っ取り阻止）。</li>
+            <li><strong>告発が外れた場合：告発者は即座に強制フォールド（敗北）となります！</strong></li>
+            <li><small>※ 👑 神 および ☯️ 陰陽師 は告発を行うことができません。</small></li>
+          </ul>
+        </div>
+
+        <div class="form-group">
+          <label>1. 告発する役職を選択:</label>
+          <div class="radio-toggle-group">
+            <label class="radio-label active" id="label-accuse-god">
+              <input type="radio" name="accuse-type" value="god" checked> 👑 神 (God)
+            </label>
+            <label class="radio-label" id="label-accuse-onmyoji">
+              <input type="radio" name="accuse-type" value="onmyoji"> ☯️ 陰陽師 (Onmyoji)
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>2. 疑わしいプレイヤーを選択:</label>
+          <div class="target-player-select-grid" id="accuse-targets-grid"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close="modal-accuse">戻る</button>
+        <button class="btn btn-danger btn-lg" id="btn-confirm-accuse">🚨 このプレイヤーを告発する！</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ラウンドリザルトモーダル -->
+  <div class="modal-overlay" id="modal-result">
+    <div class="modal-card modal-lg glass-panel result-card">
+      <div class="result-top-banner" id="result-banner">
+        <div class="result-team-badge" id="result-team-badge">VILLAGER WIN</div>
+        <h2 class="result-title" id="result-title">村人陣営の勝利！</h2>
+        <p class="result-reason" id="result-reason">最強のフルハウスで勝利を収めました</p>
+      </div>
+
+      <div class="modal-body">
+        <!-- 自分の結果 & チップ変動表示エリア -->
+        <div id="my-round-result-card" class="my-round-result-card"></div>
+
+        <div class="pot-award-box">
+          <span class="icon">🏆</span>
+          <div>
+            <span class="label">獲得ポット</span>
+            <span class="val text-gold" id="result-pot-val">$1,200</span>
+          </div>
+        </div>
+
+        <h3 class="section-subhead">全員の役職 ＆ 手札公開</h3>
+        <div class="showdown-players-grid" id="result-showdown-grid"></div>
+      </div>
+
+      <div class="modal-footer result-footer">
+        <button class="btn btn-gold btn-xl btn-block" id="btn-next-round">
+          <span>🔄 次のラウンドを開始する</span>
+        </button>
+        <button class="btn btn-secondary btn-lg btn-block" id="btn-view-final-result" style="display:none; margin-top:0.5rem;">
+          <span>🏆 最終総合結果を見る</span>
+        </button>
+        <div class="guest-result-wait-box" id="guest-result-wait-msg" style="display:none; width:100%; text-align:center; padding:0.5rem; color:var(--text-secondary);">
+          <span class="spinner" style="display:inline-block; width:16px; height:16px; border:2px solid var(--gold-400); border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px;"></span>
+          <span>ホストが次のラウンドを開始するのを待っています…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ 最終総合結果モーダル（全マッチ終了時 / 破産時） -->
+  <div class="modal-overlay" id="modal-final-result">
+    <div class="modal-card modal-lg glass-panel final-result-card">
+      <div class="final-result-banner">
+        <div class="trophy-icon">🏆</div>
+        <h2 class="final-title">MATCH COMPLETED</h2>
+        <p class="final-reason text-gold" id="final-result-reason">全 5 ラウンドが終了しました！</p>
+      </div>
+
+      <div class="modal-body">
+        <!-- 優勝者ハイライト -->
+        <div class="winner-champion-card" id="final-winner-card">
+          <span class="champ-crown">👑</span>
+          <div class="champ-info">
+            <span class="champ-label">総合優勝 (CHAMPION)</span>
+            <h3 class="champ-name" id="final-winner-name">プレイヤー名</h3>
+            <span class="champ-chips text-gold" id="final-winner-chips">$2,500</span>
+          </div>
+        </div>
+
+        <h3 class="section-subhead" style="margin-top:1.5rem;">最終チップランキング</h3>
+        <div class="final-ranking-table" id="final-ranking-list">
+          <!-- ランキング行 -->
+        </div>
+      </div>
+
+      <div class="modal-footer result-footer">
+        <button class="btn btn-gold btn-xl btn-block" id="btn-return-lobby">
+          <span>🏠 タイトル（待機室）に戻る</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QRコード接続モーダル -->
+  <div class="modal-overlay" id="modal-qr">
+    <div class="modal-card glass-panel text-center">
+      <div class="modal-header">
+        <h2>📱 スマホからゲームに参加する</h2>
+        <button class="btn-close-modal" data-close="modal-qr">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="qr-note">同じWi-Fiに接続したスマホのカメラで読み取ってください：</p>
+        <div class="qr-image-container" id="qr-container">
+          <img id="qr-code-img" alt="QR Code" src="">
+        </div>
+        <div class="qr-url-box">
+          <span class="url-label">直接アクセス用URL:</span>
+          <code id="qr-url-text">http://192.168.x.x:3000</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 役職カスタマイズ設定モーダル -->
+  <div class="modal-overlay" id="modal-role-settings">
+    <div class="modal-card modal-lg glass-panel">
+      <div class="modal-header">
+        <h2>⚙️ 出現役職カスタマイズ (Ban / Pick)</h2>
+        <button class="btn-close-modal" data-close="modal-role-settings">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem;">
+          ゲームに登場させる役職を選択できます。チェックを外した役職は抽選プールから除外されます。
+        </p>
+
+        <!-- 神枠設定グループ -->
+        <div class="role-settings-group-box">
+          <div class="group-title">
+            <span>👑 神枠役職（確定1名枠の抽選対象）</span>
+            <small style="color:var(--gold-400);">※最低1つは有効化が必要</small>
+          </div>
+          <div class="role-settings-grid">
+            <label class="role-toggle-item role-border-god">
+              <input type="checkbox" id="setting-role-god" value="god" checked>
+              <div class="toggle-content">
+                <span class="role-icon">👑</span>
+                <span class="role-name">神 (God)</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-joker">
+              <input type="checkbox" id="setting-role-joker" value="joker" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🎭</span>
+                <span class="role-name">ジョーカー (Joker)</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- その他役職設定グループ -->
+        <div class="role-settings-group-box" style="margin-top:1.25rem;">
+          <div class="group-title">
+            <span>🛡️ 村人・その他陣営の役職</span>
+            <div class="group-actions">
+              <button class="btn btn-xs btn-ghost" id="btn-role-select-all">全選択</button>
+              <button class="btn btn-xs btn-ghost" id="btn-role-reset-default">デフォルトに戻す</button>
+            </div>
+          </div>
+          <div class="role-settings-grid">
+            <label class="role-toggle-item role-border-cultist">
+              <input type="checkbox" class="setting-other-role" value="cultist" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🩸</span>
+                <span class="role-name">狂信者</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-onmyoji">
+              <input type="checkbox" class="setting-other-role" value="onmyoji" checked>
+              <div class="toggle-content">
+                <span class="role-icon">☯️</span>
+                <span class="role-name">陰陽師</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-lovers">
+              <input type="checkbox" class="setting-other-role" value="lovers" checked>
+              <div class="toggle-content">
+                <span class="role-icon">💕</span>
+                <span class="role-name">恋人</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-seer">
+              <input type="checkbox" class="setting-other-role" value="seer" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🔮</span>
+                <span class="role-name">占い師</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-swindler">
+              <input type="checkbox" class="setting-other-role" value="swindler" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🃏</span>
+                <span class="role-name">詐欺師</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-salesman">
+              <input type="checkbox" class="setting-other-role" value="salesman" checked>
+              <div class="toggle-content">
+                <span class="role-icon">💼</span>
+                <span class="role-name">営業マン</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-jobless">
+              <input type="checkbox" class="setting-other-role" value="jobless" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🛋️</span>
+                <span class="role-name">無職</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-jogress">
+              <input type="checkbox" class="setting-other-role" value="jogress" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🧬</span>
+                <span class="role-name">ジョグレス</span>
+              </div>
+            </label>
+            <label class="role-toggle-item role-border-revolutionist">
+              <input type="checkbox" class="setting-other-role" value="revolutionist" checked>
+              <div class="toggle-content">
+                <span class="role-icon">🚩</span>
+                <span class="role-name">革命家</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close="modal-role-settings">キャンセル</button>
+        <button class="btn btn-gold btn-lg" id="btn-save-role-settings">⚙️ 設定を適用する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ 革命発動ドデカ演出ポップアップ -->
+  <div class="revolution-pop-overlay" id="revolution-pop-overlay">
+    <div class="revolution-pop-card">
+      <div class="revolution-pop-icon">🚩</div>
+      <h1 class="revolution-pop-title">革命発動！！</h1>
+      <div class="revolution-pop-sub" id="revolution-pop-sub">【ポーカー役の強さ】が反転しました！</div>
+      <div class="revolution-pop-desc" id="revolution-pop-desc">最弱のハイカードが最強、ロイヤルストレートフラッシュが最弱！</div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=2"></script>
+</body>
+</html>
