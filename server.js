@@ -39,21 +39,31 @@ function getLocalIpAddress() {
   return 'localhost';
 }
 
+// エラーキャッチ（クラッシュ防止）
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ 未キャッチの例外が発生しました:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ 未処理のPromise拒否が発生しました:', reason);
+});
+
 // サーバー情報API（QRコード生成用）
 app.get('/api/server-info', async (req, res) => {
-  const localIp = getLocalIpAddress();
-  const serverUrl = `http://${localIp}:${PORT}`;
   try {
-    const qrDataUrl = await QRCode.toDataURL(serverUrl, { margin: 2, width: 256 });
+    const hostHeader = req.headers.host;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const serverUrl = hostHeader ? `${protocol}://${hostHeader}` : `http://${getLocalIpAddress()}:${PORT}`;
+    const qrDataUrl = await QRCode.toDataURL(serverUrl);
     res.json({
-      localIp,
+      localIp: getLocalIpAddress(),
       port: PORT,
       serverUrl,
       qrDataUrl,
       roles: ROLE_DEFINITIONS
     });
   } catch (err) {
-    res.status(500).json({ error: 'QRコード生成エラー' });
+    console.error('QRコード生成エラー:', err);
+    res.status(500).json({ error: 'Server info generation failed' });
   }
 });
 

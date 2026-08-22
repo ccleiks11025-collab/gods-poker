@@ -4,6 +4,9 @@
   "description": "GOD'S HOLD'EM - Texas Hold'em with Werewolf Roles and Local Multiplayer",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "node test/test-game.js"
