@@ -1,0 +1,16 @@
+{
+  "name": "gods-poker",
+  "version": "1.0.0",
+  "description": "GOD'S HOLD'EM - Texas Hold'em with Werewolf Roles and Local Multiplayer",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/test-game.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  }
+}
